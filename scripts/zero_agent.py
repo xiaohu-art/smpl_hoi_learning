@@ -35,6 +35,11 @@ import torch
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import parse_env_cfg
 
+import omni.kit.app
+manager = omni.kit.app.get_app().get_extension_manager()
+if not manager.is_extension_enabled("isaacsim.asset.importer.mjcf-2.5.13"):
+    manager.set_extension_enabled_immediate("isaacsim.asset.importer.mjcf-2.5.13", True)
+
 import smpl_hoi_learning.tasks  # noqa: F401
 
 

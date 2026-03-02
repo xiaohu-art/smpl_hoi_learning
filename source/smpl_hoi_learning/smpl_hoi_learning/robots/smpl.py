@@ -5,9 +5,11 @@ from isaaclab.assets.articulation import ArticulationCfg
 from smpl_hoi_learning.assets import SUB10_XML_PATH
 
 SUB10_CFG = ArticulationCfg(
-    spawn=sim_utils.UsdFileCfg(
-        # asset_path=SUB10_XML_PATH,
-        usd_path="/home/ubuntu/Desktop/IsaacSim51/smpl_hoi_learning/source/smpl_hoi_learning/smpl_hoi_learning/assets/smpl_humanoid.usda",
+    spawn=sim_utils.MjcfFileCfg(
+        asset_path=SUB10_XML_PATH,
+        fix_base=False,
+        make_instanceable=False,
+        force_usd_conversion=True,
         activate_contact_sensors=True,
         # Articulation properties
         articulation_props = sim_utils.ArticulationRootPropertiesCfg(
@@ -29,7 +31,7 @@ SUB10_CFG = ArticulationCfg(
             rest_offset=0.0,
         )
     ),
-    articulation_root_prim_path="/Pelvis",
+    articulation_root_prim_path="/Pelvis/Pelvis",
 
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 1.0),

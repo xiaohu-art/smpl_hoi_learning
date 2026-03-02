@@ -21,7 +21,6 @@ parser.add_argument("--input_file", type=str, required=True, help="The path to t
 parser.add_argument("--output_file", type=str, required=True, help="The path to the output motion pkl file containing multiple motions.")
 parser.add_argument("--input_fps", type=int, default=30, help="The fps of the input motion.")
 parser.add_argument("--output_fps", type=int, default=30, help="The fps of the output motion.")
-parser.add_argument("--bps_path", type=str, default="./data/bps.pt", help="The path to the bps file.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -30,6 +29,11 @@ args_cli = parser.parse_args()
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
+
+import omni.kit.app
+manager = omni.kit.app.get_app().get_extension_manager()
+if not manager.is_extension_enabled("isaacsim.asset.importer.mjcf-2.5.13"):
+    manager.set_extension_enabled_immediate("isaacsim.asset.importer.mjcf-2.5.13", True)
 
 """Rest everything follows."""
 
@@ -126,83 +130,16 @@ class ReplayMotionsSceneCfg(InteractiveSceneCfg):
 
     # articulation
     robot = SUB10_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-    # contact_forces = ContactSensorCfg(
-    #     prim_path="{ENV_REGEX_NS}/Robot/.*",
-    #     track_air_time=True,
-    #     history_length=3,
-    # )
-
-from pxr import Usd, UsdGeom, Gf, Vt
-import omni.usd
-
-def create_points_prim(path: str, point_size: float = 0.01, color=(0.1, 0.8, 1.0)):
-    stage = omni.usd.get_context().get_stage()
-    pts = UsdGeom.Points.Define(stage, path)
-    pts.CreateWidthsAttr().Set(Vt.FloatArray([point_size]))
-    pts.CreateDisplayColorAttr().Set(Vt.Vec3fArray([Gf.Vec3f(*color)]))
-    pts.CreatePointsAttr().Set(Vt.Vec3fArray())
-    return pts
-
-def set_points(pts_prim, points):  
-    """
-    points: (P,3) / (N, P, 3) float32/float64
-    """
-    if points.ndim == 3:
-        points = points[0]
-    P = int(points.shape[0])
-    arr = Vt.Vec3fArray(P)
-    arr[:] = [Gf.Vec3f(float(x), float(y), float(z)) for x,y,z in points]
-    pts_prim.GetPointsAttr().Set(arr)
-
-bps_points_prim = create_points_prim("/World/BPSPointCloud", point_size=0.04, color=(0.2, 0.9, 0.9))
-contact_body_points_prim_pos = create_points_prim("/World/ContactBodyPointsPos", point_size=0.04, color=(0.2, 0.9, 0.2))
-contact_body_points_prim_neg = create_points_prim("/World/ContactBodyPointsNeg", point_size=0.08, color=(0.9, 0.2, 0.2))
-
-def render_bps_points(bps, obj_rot, obj_trans):
-    """
-    Render BPS points without object geometry offset.
-    bps: torch.Tensor, shape (num point, 3)
-    obj_rot: torch.Tensor, shape (num_envs, 4) quaternion (w, x, y, z)
-    obj_trans: torch.Tensor, shape (num_envs, 3) translation (x, y, z)
-    """
-    N, P = obj_rot.shape[0], bps.shape[0]
-    obj_rot_matrix = matrix_from_quat(obj_rot)    # (N, 3, 3)
-
-    # Apply rotation and translation to BPS points
-    bps_cloud = bps.unsqueeze(0).expand(N, -1, -1)         # (N, P, 3)
-    bps_cloud = bps_cloud @ obj_rot_matrix.transpose(1, 2) + obj_trans[:, None, :]
-    set_points(bps_points_prim, bps_cloud)
-
-
-def render_contact_body_points(body_pos_w, contact):
-    """
-    body_pos_w: torch.Tensor, shape (N, 3)
-    contact: torch.Tensor, shape (N)
-    """
-    contact_np = contact.cpu().numpy()
-    
-    # Positive contacts (1)
-    mask_pos = (contact_np > 0.5)
-    points_pos = body_pos_w[mask_pos].cpu().numpy().copy() if mask_pos.any() else np.empty((0, 3))
-    set_points(contact_body_points_prim_pos, points_pos)
-
-    # Negative contacts (-1)
-    mask_neg = (contact_np < -0.5)
-    points_neg = body_pos_w[mask_neg].cpu().numpy().copy() if mask_neg.any() else np.empty((0, 3))
-    set_points(contact_body_points_prim_neg, points_neg)
 
 class MotionLoader:
     def __init__(
         self,
-        bps_path: str,
         human_data: dict,
         object_data: dict,
         input_fps: int,
         output_fps: int,
         device: torch.device,
     ):
-        # bps_tensor = torch.load(bps_path) 
-        # self.bps = bps_tensor.squeeze()
         self.human_data = human_data
         self.object_data = object_data
         self.input_fps = input_fps
@@ -219,7 +156,7 @@ class MotionLoader:
         """Loads the motion from the motion data dict."""
 
         human_motion = self.human_data          # poses, betas, trans, gender, dof_pos, keypoints, contact
-        object_motion = self.object_data        # rot, trans, name, scale, bps_object_geo
+        object_motion = self.object_data        # rot, trans, name, scale
 
         self.human_base_poss_input = torch.from_numpy(human_motion["trans"]).to(self.device)    # T X 3
         poses = human_motion["poses"].reshape(-1, 52, 3)                                        # T X 52 X 3 rotation vector
@@ -244,9 +181,6 @@ class MotionLoader:
 
         self.object_base_poss_input = self.object_base_poss_input.to(torch.float32)
         self.object_base_rots_input = self.object_base_rots_input.to(torch.float32)
-
-        # Move BPS points to device and convert to float32
-        # self.bps = self.bps.to(self.device).to(torch.float32)  # (N, 3)
 
         self.input_frames = self.human_base_poss_input.shape[0]
         self.duration = (self.input_frames - 1) * self.input_dt
@@ -352,7 +286,6 @@ class MotionLoader:
             torch.Tensor,
             torch.Tensor,
             torch.Tensor,
-            torch.Tensor,
         ],
         bool,
     ]:
@@ -364,7 +297,6 @@ class MotionLoader:
             self.human_base_ang_vels[self.current_idx : self.current_idx + 1],
             self.human_dof_poss[self.current_idx : self.current_idx + 1],
             self.human_dof_vels[self.current_idx : self.current_idx + 1],
-            self.human_contact[self.current_idx : self.current_idx + 1],
             self.object_base_poss[self.current_idx : self.current_idx + 1],
             self.object_base_rots[self.current_idx : self.current_idx + 1],
             self.object_base_lin_vels[self.current_idx : self.current_idx + 1],
@@ -379,12 +311,11 @@ class MotionLoader:
 
 
 def process_single_motion(sim: sim_utils.SimulationContext, scene: InteractiveScene, 
-                         joint_names: list[str], body_names: list[str],
+                         joint_names: list[str],
                          human_data: dict, object_data: dict) -> dict:
     """Processes a single motion and returns collected simulation data."""
     # Load motion
     motion = MotionLoader(
-        bps_path=args_cli.bps_path,
         human_data=human_data,
         object_data=object_data,
         input_fps=args_cli.input_fps,
@@ -395,19 +326,6 @@ def process_single_motion(sim: sim_utils.SimulationContext, scene: InteractiveSc
     # Extract scene entities
     robot = scene["robot"]
     robot_joint_indexes, robot_joint_names = robot.find_joints(joint_names, preserve_order=True)
-    robot_body_indexes, robot_body_names = robot.find_bodies(body_names, preserve_order=True)
-    assert len(robot_body_indexes) == len(robot.body_names)
-
-    try:
-        object = scene["object"]
-        has_object = True
-    except KeyError:
-        object = None
-        has_object = False
-        print(f"[WARN]: Scene has no 'object' entity. Object writes/logs will use motion data only.")
-
-    # contact_sensor = scene["contact_forces"]
-    # contact_sensor_body_indexes, contact_sensor_body_names = contact_sensor.find_bodies(body_names)
 
     # ------- data logger -------------------------------------------------------
     log = {
@@ -422,10 +340,6 @@ def process_single_motion(sim: sim_utils.SimulationContext, scene: InteractiveSc
         "object_quat_w": [],
         "object_lin_vel_w": [],
         "object_ang_vel_w": [],
-        # ==== BPS Point Cloud ====
-        # "bps_object_geo": [],
-        # ==== Contacts ====
-        "contact": []
     }
     file_saved = False
     # --------------------------------------------------------------------------
@@ -440,7 +354,6 @@ def process_single_motion(sim: sim_utils.SimulationContext, scene: InteractiveSc
                 human_base_ang_vel,
                 human_dof_pos,
                 human_dof_vel,
-                human_contact,
                 object_base_pos,
                 object_base_rot,
                 object_base_lin_vel,
@@ -465,25 +378,8 @@ def process_single_motion(sim: sim_utils.SimulationContext, scene: InteractiveSc
         joint_vel[:, robot_joint_indexes] = human_dof_vel
         robot.write_joint_state_to_sim(joint_pos, joint_vel)
 
-
-        # set object state (if object prim exists in scene)
-        # if has_object:
-        #     object_state = object.data.default_root_state.clone()
-        #     object_state[:, :3] = object_base_pos
-        #     object_state[:, :2] += scene.env_origins[:, :2]
-        #     object_state[:, 3:7] = object_base_rot
-        #     object_state[:, 7:10] = object_base_lin_vel
-        #     object_state[:, 10:] = object_base_ang_vel
-        #     object.write_root_state_to_sim(object_state)
-
         sim.render()  # We don't want physic (sim.step())
         scene.update(sim.get_physics_dt())
-
-        human_contact_reordered = torch.zeros_like(human_contact)
-        human_contact_reordered[:, robot_body_indexes] = human_contact
-
-        # render_bps_points(motion.bps,object_base_rot, object_base_pos)
-        render_contact_body_points(robot.data.body_pos_w[0, :], human_contact_reordered[0, :])
 
         if not file_saved:
             log["joint_pos"].append(robot.data.joint_pos[0, :].cpu().numpy().copy())
@@ -492,20 +388,12 @@ def process_single_motion(sim: sim_utils.SimulationContext, scene: InteractiveSc
             log["body_quat_w"].append(robot.data.body_quat_w[0, :].cpu().numpy().copy())
             log["body_lin_vel_w"].append(robot.data.body_lin_vel_w[0, :].cpu().numpy().copy())
             log["body_ang_vel_w"].append(robot.data.body_ang_vel_w[0, :].cpu().numpy().copy())
-            # if has_object:
-            #     # log["object_pos_w"].append(object.data.root_pos_w[0, :].cpu().numpy().copy())
-            #     # log["object_quat_w"].append(object.data.root_quat_w[0, :].cpu().numpy().copy())
-            #     # log["object_lin_vel_w"].append(object.data.root_lin_vel_w[0, :].cpu().numpy().copy())
-            #     # log["object_ang_vel_w"].append(object.data.root_ang_vel_w[0, :].cpu().numpy().copy())
-            # else:
-                # use motion-provided object state (and add scene env origin xy offset)
             obj_pos = object_base_pos.clone()
             obj_pos[:, :2] += scene.env_origins[:, :2]
             log["object_pos_w"].append(obj_pos[0, :].cpu().numpy().copy())
             log["object_quat_w"].append(object_base_rot[0, :].cpu().numpy().copy())
             log["object_lin_vel_w"].append(object_base_lin_vel[0, :].cpu().numpy().copy())
             log["object_ang_vel_w"].append(object_base_ang_vel[0, :].cpu().numpy().copy())
-            log["contact"].append(human_contact_reordered[0, :].cpu().numpy().copy())
 
         if reset_flag and not file_saved:
             file_saved = True
@@ -520,21 +408,16 @@ def process_single_motion(sim: sim_utils.SimulationContext, scene: InteractiveSc
                 "object_quat_w",
                 "object_lin_vel_w",
                 "object_ang_vel_w",
-                "contact",
             ):
                 log[k] = np.stack(log[k], axis=0)
 
-            # log["bps_object_geo"] = motion.bps_object_geo.cpu().numpy().copy()
             print(f"[INFO]: Motion processed successfully")
             # break
     
     return log
 
 
-def run_simulator(  sim: sim_utils.SimulationContext, scene: InteractiveScene, 
-                    joint_names: list[str], 
-                    body_names: list[str]
-                ):
+def run_simulator(  sim: sim_utils.SimulationContext, scene: InteractiveScene, joint_names: list[str]):
     """Runs the simulation loop for multiple motions."""
     # Load the pkl file containing multiple motions
     print(f"[INFO]: Loading motions from {args_cli.input_file}")
@@ -552,7 +435,6 @@ def run_simulator(  sim: sim_utils.SimulationContext, scene: InteractiveScene,
                                     sim, 
                                     scene, 
                                     joint_names, 
-                                    body_names, 
                                     human_data, 
                                     object_data
                                 )
@@ -570,15 +452,10 @@ def main():
     sim_cfg = sim_utils.SimulationCfg(device=args_cli.device)
     sim_cfg.dt = 1.0 / args_cli.output_fps
     sim = SimulationContext(sim_cfg)
-    # Design scene
-
-    # Setup object
-    # obj_name = args_cli.input_file.split("_")[1]
-    # obj_cfg = object_dict[obj_name].replace(prim_path="{ENV_REGEX_NS}/Object")
 
     scene_cfg = ReplayMotionsSceneCfg(num_envs=1, env_spacing=2.0)
-    # setattr(scene_cfg, "object", obj_cfg)
     scene = InteractiveScene(scene_cfg)
+
     # Play the simulator
     sim.reset()
     # Now we are ready!
@@ -593,8 +470,7 @@ def main():
     run_simulator(
         sim,
         scene,
-        joint_names=joint_names,
-        body_names=SMPLH_BONE_ORDER_NAMES
+        joint_names=joint_names
     )
 
 

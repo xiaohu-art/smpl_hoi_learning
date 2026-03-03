@@ -377,7 +377,7 @@ def process_single_motion(sim: sim_utils.SimulationContext, scene: InteractiveSc
         joint_pos[:, robot_joint_indexes] = human_dof_pos
         joint_vel[:, robot_joint_indexes] = human_dof_vel
         robot.write_joint_state_to_sim(joint_pos, joint_vel)
-
+        
         sim.render()  # We don't want physic (sim.step())
         scene.update(sim.get_physics_dt())
 

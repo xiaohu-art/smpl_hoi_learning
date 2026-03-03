@@ -23,8 +23,6 @@ from . import mdp
 # Pre-defined configs
 ##
 
-from isaaclab_assets.robots.cartpole import CARTPOLE_CFG  # isort:skip
-
 from smpl_hoi_learning.robots.smpl import SUB10_CFG
 
 ##
@@ -83,6 +81,13 @@ class ObservationsCfg:
     # observation groups
     policy: PolicyCfg = PolicyCfg()
 
+@configclass
+class CommandsCfg:
+    """Command specifications for the MDP."""
+    motion = mdp.MotionCommandCfg(
+        resampling_time_range=(1.0e9, 1.0e9),
+        debug_vis=True,
+    )
 
 @configclass
 class EventCfg:
@@ -167,6 +172,7 @@ class SmplHoiLearningEnvCfg(ManagerBasedRLEnvCfg):
     actions: ActionsCfg = ActionsCfg()
     events: EventCfg = EventCfg()
     # MDP settings
+    commands: CommandsCfg=CommandsCfg()
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
 

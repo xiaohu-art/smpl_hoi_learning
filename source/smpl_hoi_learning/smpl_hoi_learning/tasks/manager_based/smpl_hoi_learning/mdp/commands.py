@@ -13,7 +13,10 @@ from isaaclab.utils import configclass
 class MotionLoader:
     def __init__(self, motion_file: str, body_indexes: Sequence[int], device: str = "cpu"):
         assert os.path.isfile(motion_file), f"Invalid file path: {motion_file}"
-        data = np.load(motion_file, allow_pickle=True)
+        data = np.load(motion_file, allow_pickle=True)["processed_motions"].item()
+
+        # TODO: change to object and sequence name in the future
+        data = data["clothesstand"]['sub16_clothesstand_000']
         self.fps = data["fps"]
         self.joint_pos = torch.tensor(data["joint_pos"], dtype=torch.float32, device=device)
         self.joint_vel = torch.tensor(data["joint_vel"], dtype=torch.float32, device=device)
@@ -53,16 +56,9 @@ class MotionCommand(CommandTerm):
         self.body_indexes = torch.tensor(
             self.robot.find_bodies(self.cfg.body_names, preserve_order=True)[0], dtype=torch.long, device=self.device
         )
-        self.robot_joint_indexes, robot_joint_names = self.robot.find_joints(self.cfg.joint_names, preserve_order=True)
         self.motion = MotionLoader(self.cfg.motion_file, self.body_indexes, device=self.device)
     
         self.time_steps = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
-
-        robot_all_joint_names = self.robot.joint_names
-    
-        # 打印前 5 个关节看看对不对得上
-        print(f"数据预期的前5个关节: {self.cfg.joint_names[:5]}")
-        print(f"机器人实际的前5个关节: {robot_all_joint_names[:5]}")
 
     @property
     def command(self) -> torch.Tensor:  # TODO Consider again if this is the best observation
@@ -70,11 +66,11 @@ class MotionCommand(CommandTerm):
     
     @property
     def joint_pos(self) -> torch.Tensor:
-        return self.motion.joint_pos[:, self.robot_joint_indexes]
+        return self.motion.joint_pos
 
     @property
     def joint_vel(self) -> torch.Tensor:
-        return self.motion.joint_vel[:, self.robot_joint_indexes]
+        return self.motion.joint_vel
 
     def _update_metrics(self):
         return 
@@ -101,9 +97,9 @@ class MotionCommand(CommandTerm):
         # set joint state
         joint_pos = self.robot.data.default_joint_pos.clone()
         joint_vel = self.robot.data.default_joint_vel.clone()
-        joint_pos[:, self.robot_joint_indexes] = self.joint_pos[self.time_steps]
-        joint_vel[:, self.robot_joint_indexes] = self.joint_vel[self.time_steps]
-        self.robot.write_joint_state_to_sim(joint_pos, joint_vel,joint_ids=self.robot_joint_indexes)
+        joint_pos = self.joint_pos[self.time_steps]
+        joint_vel = self.joint_vel[self.time_steps]
+        self.robot.write_joint_state_to_sim(joint_pos, joint_vel)
 
         
 
@@ -167,8 +163,4 @@ class MotionCommandCfg(CommandTermCfg):
     class_type: type = MotionCommand
     asset_name: str = "robot"
     body_names: Sequence[str] = (".*",)
-    motion_file: str = "./output/output.npz"
-    def __post_init__(self):
-        AXES = ["x", "y", "z"]
-        JOINT_ORDER = [n for n in SMPLH_BONE_ORDER_NAMES if n != "Pelvis"]
-        self.joint_names = [f"{base}_{a}" for base in JOINT_ORDER for a in AXES]
+    motion_file: str = "./data/example.npz"

@@ -2,6 +2,11 @@ import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 
+import omni.kit.app
+manager = omni.kit.app.get_app().get_extension_manager()
+if not manager.is_extension_enabled("isaacsim.asset.importer.mjcf-2.5.13"):
+    manager.set_extension_enabled_immediate("isaacsim.asset.importer.mjcf-2.5.13", True)
+
 from smpl_hoi_learning.assets import SUB10_XML_PATH
 
 SUB10_CFG = ArticulationCfg(

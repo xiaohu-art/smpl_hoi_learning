@@ -1,14 +1,13 @@
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
-from isaaclab.assets.rigid_object import RigidObjectCfg
 
 import omni.kit.app
 manager = omni.kit.app.get_app().get_extension_manager()
 if not manager.is_extension_enabled("isaacsim.asset.importer.mjcf-2.5.13"):
     manager.set_extension_enabled_immediate("isaacsim.asset.importer.mjcf-2.5.13", True)
 
-from smpl_hoi_learning.assets import ASSET_DIR, SUB10_XML_PATH
+from smpl_hoi_learning.robots import SUB10_XML_PATH
 
 SUB10_CFG = ArticulationCfg(
     spawn=sim_utils.MjcfFileCfg(
@@ -73,24 +72,4 @@ SUB10_CFG = ArticulationCfg(
     ),
     }
     
-)
-
-CLOTHESSTAND_CFG = RigidObjectCfg(
-    spawn=sim_utils.UsdFileCfg(
-        scale=(1.0, 1.0, 1.0),
-        usd_path=f"{ASSET_DIR}/objects/clothesstand/clothesstand.usd",
-        activate_contact_sensors=True,
-        mass_props=sim_utils.MassPropertiesCfg(
-            density=200.0
-        ),
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=False,
-            retain_accelerations=False,
-            linear_damping=0.0,
-            angular_damping=0.0,
-            max_linear_velocity=1000.0,
-            max_angular_velocity=1000.0,
-            max_depenetration_velocity=1.0,
-        ),
-    ),
 )

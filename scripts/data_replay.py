@@ -30,11 +30,6 @@ args_cli = parser.parse_args()
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
-import omni.kit.app
-manager = omni.kit.app.get_app().get_extension_manager()
-if not manager.is_extension_enabled("isaacsim.asset.importer.mjcf-2.5.13"):
-    manager.set_extension_enabled_immediate("isaacsim.asset.importer.mjcf-2.5.13", True)
-
 """Rest everything follows."""
 
 import torch
@@ -172,9 +167,6 @@ class MotionLoader:
         self.human_base_rots_input = self.human_base_rots_input.to(torch.float32)
         self.human_dof_poss_input = self.human_dof_poss_input.to(torch.float32)
 
-        self.human_contact = torch.from_numpy(human_motion["contacts"]).to(self.device)
-        self.human_contact = self.human_contact.to(torch.float32)
-
         self.object_base_poss_input = torch.from_numpy(object_motion["trans"]).to(self.device)    # T X 3
         self.object_base_rots_input = torch.from_numpy(object_motion["rot"]).to(self.device)
         self.object_base_rots_input = quat_unique(quat_from_matrix(self.object_base_rots_input))    # T X 4
@@ -204,11 +196,6 @@ class MotionLoader:
         self.human_dof_poss = self._lerp(
             self.human_dof_poss_input[index_0],
             self.human_dof_poss_input[index_1],
-            blend.unsqueeze(1),
-        )
-        self.human_contact = self._lerp(
-            self.human_contact[index_0],
-            self.human_contact[index_1],
             blend.unsqueeze(1),
         )
         self.object_base_poss = self._lerp(
@@ -412,7 +399,7 @@ def process_single_motion(sim: sim_utils.SimulationContext, scene: InteractiveSc
                 log[k] = np.stack(log[k], axis=0)
 
             print(f"[INFO]: Motion processed successfully")
-            # break
+            break
     
     return log
 
@@ -439,10 +426,10 @@ def run_simulator(  sim: sim_utils.SimulationContext, scene: InteractiveScene, j
                                     object_data
                                 )
             processed_motions[object_name][sub_object_name] = simulation_data
-        
-    # Save the updated pkl file
+    
+    # Save the updated motions to npz file
     print(f"[INFO]: Saving updated motions to {args_cli.output_file}")
-    joblib.dump(processed_motions, args_cli.output_file)
+    np.savez_compressed(args_cli.output_file, processed_motions=processed_motions)
     print(f"[INFO]: Successfully processed and saved {len(processed_motions)} motions")
     print(processed_motions.keys())
 

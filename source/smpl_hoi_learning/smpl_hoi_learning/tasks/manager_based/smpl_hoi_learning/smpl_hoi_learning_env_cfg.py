@@ -16,6 +16,9 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
+from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
+from isaaclab.sensors import ContactSensorCfg
+
 
 from . import mdp
 
@@ -49,6 +52,11 @@ class SmplHoiLearningSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.DomeLightCfg(color=(0.9, 0.9, 0.9), intensity=500.0),
     )
 
+    #contact
+    # contact_forces = ContactSensorCfg(
+    #     prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_air_time=True, force_threshold=10.0, debug_vis=True
+    # )
+
 
 ##
 # MDP settings
@@ -71,15 +79,41 @@ class ObservationsCfg:
         """Observations for policy group."""
 
         # observation terms (order preserved)
-        joint_pos_rel = ObsTerm(func=mdp.joint_pos_rel)
-        joint_vel_rel = ObsTerm(func=mdp.joint_vel_rel)
+        # command = ObsTerm(func=mdp.generated_commands, params={"command_name": "motion"})
+        motion_anchor_pos_b = ObsTerm(
+            func=mdp.motion_anchor_pos_b, params={"command_name": "motion"}, noise=Unoise(n_min=-0.25, n_max=0.25)
+        )
+        motion_anchor_ori_b = ObsTerm(
+            func=mdp.motion_anchor_ori_b, params={"command_name": "motion"}, noise=Unoise(n_min=-0.05, n_max=0.05)
+        )
+        base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.5, n_max=0.5))
+        base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2))
+        joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
+        joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-0.5, n_max=0.5))
+        actions = ObsTerm(func=mdp.last_action)
 
-        def __post_init__(self) -> None:
-            self.enable_corruption = False
+        def __post_init__(self):
+            self.enable_corruption = True
             self.concatenate_terms = True
+
+    @configclass
+    class PrivilegedCfg(ObsGroup):
+        # command = ObsTerm(func=mdp.generated_commands, params={"command_name": "motion"})
+        motion_anchor_pos_b = ObsTerm(func=mdp.motion_anchor_pos_b, params={"command_name": "motion"})
+        motion_anchor_ori_b = ObsTerm(func=mdp.motion_anchor_ori_b, params={"command_name": "motion"})
+        body_pos = ObsTerm(func=mdp.robot_body_pos_b, params={"command_name": "motion"})
+        body_ori = ObsTerm(func=mdp.robot_body_ori_b, params={"command_name": "motion"})
+        base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
+        base_ang_vel = ObsTerm(func=mdp.base_ang_vel)
+        joint_pos = ObsTerm(func=mdp.joint_pos_rel)
+        joint_vel = ObsTerm(func=mdp.joint_vel_rel)
+        actions = ObsTerm(func=mdp.last_action)
 
     # observation groups
     policy: PolicyCfg = PolicyCfg()
+    critic: PrivilegedCfg = PrivilegedCfg()
+
+
 
 @configclass
 class CommandsCfg:
@@ -87,6 +121,22 @@ class CommandsCfg:
     motion = mdp.MotionCommandCfg(
         resampling_time_range=(1.0e9, 1.0e9),
         debug_vis=True,
+        pose_range={
+            "x": (-0.05, 0.05),
+            "y": (-0.05, 0.05),
+            "z": (-0.01, 0.01),
+            "roll": (-0.1, 0.1),
+            "pitch": (-0.1, 0.1),
+            "yaw": (-0.2, 0.2),
+        },
+        velocity_range={
+            "x": (-0.5, 0.5),
+            "y": (-0.5, 0.5),
+            "z": (-0.2, 0.2),
+            "roll": (-0.52, 0.52),
+            "pitch": (-0.52, 0.52),
+            "yaw": (-0.78, 0.78),
+        }
     )
 
 @configclass
@@ -120,29 +170,46 @@ class RewardsCfg:
     """Reward terms for the MDP."""
 
     # (0) example
-    example = RewTerm(func=mdp.joint_acc_l2, weight=1.0)
+    motion_global_anchor_pos = RewTerm(
+        func=mdp.motion_global_anchor_position_error_exp,
+        weight=0.5,
+        params={"command_name": "motion", "std": 0.3},
+    )
+    motion_global_anchor_ori = RewTerm(
+        func=mdp.motion_global_anchor_orientation_error_exp,
+        weight=0.5,
+        params={"command_name": "motion", "std": 0.4},
+    )
+    motion_body_pos = RewTerm(
+        func=mdp.motion_relative_body_position_error_exp,
+        weight=1.0,
+        params={"command_name": "motion", "std": 0.3},
+    )
+    motion_body_ori = RewTerm(
+        func=mdp.motion_relative_body_orientation_error_exp,
+        weight=1.0,
+        params={"command_name": "motion", "std": 0.4},
+    )
+    motion_body_lin_vel = RewTerm(
+        func=mdp.motion_global_body_linear_velocity_error_exp,
+        weight=1.0,
+        params={"command_name": "motion", "std": 1.0},
+    )
+    motion_body_ang_vel = RewTerm(
+        func=mdp.motion_global_body_angular_velocity_error_exp,
+        weight=1.0,
+        params={"command_name": "motion", "std": 3.14},
+    )
+    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-1e-1)
+    joint_limit = RewTerm(
+        func=mdp.joint_pos_limits,
+        weight=-10.0,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*"])},
+    )
     # (1) Constant running reward
     alive = RewTerm(func=mdp.is_alive, weight=1.0)
     # (2) Failure penalty
     terminating = RewTerm(func=mdp.is_terminated, weight=-2.0)
-    # # (3) Primary task: keep pole upright
-    # pole_pos = RewTerm(
-    #     func=mdp.joint_pos_target_l2,
-    #     weight=-1.0,
-    #     params={"asset_cfg": SceneEntityCfg("robot", joint_names=["cart_to_pole"]), "target": 0.0},
-    # )
-    # # (4) Shaping tasks: lower cart velocity
-    # cart_vel = RewTerm(
-    #     func=mdp.joint_vel_l1,
-    #     weight=-0.01,
-    #     params={"asset_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"])},
-    # )
-    # # (5) Shaping tasks: lower pole angular velocity
-    # pole_vel = RewTerm(
-    #     func=mdp.joint_vel_l1,
-    #     weight=-0.005,
-    #     params={"asset_cfg": SceneEntityCfg("robot", joint_names=["cart_to_pole"])},
-    # )
 
 
 @configclass
@@ -156,6 +223,27 @@ class TerminationsCfg:
     #     func=mdp.joint_pos_out_of_manual_limit,
     #     params={"asset_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"]), "bounds": (-3.0, 3.0)},
     # )
+    anchor_pos = DoneTerm(
+        func=mdp.bad_anchor_pos_z_only,
+        params={"command_name": "motion", "threshold": 0.25},
+    )
+    anchor_ori = DoneTerm(
+        func=mdp.bad_anchor_ori,
+        params={"asset_cfg": SceneEntityCfg("robot"), "command_name": "motion", "threshold": 0.8},
+    )
+    ee_body_pos = DoneTerm(
+        func=mdp.bad_motion_body_pos_z_only,
+        params={
+            "command_name": "motion",
+            "threshold": 0.25,
+            "body_names": [
+                "left_ankle_roll_link",
+                "right_ankle_roll_link",
+                "left_wrist_yaw_link",
+                "right_wrist_yaw_link",
+            ],
+        },
+    )
 
 
 ##

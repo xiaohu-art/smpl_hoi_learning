@@ -6,7 +6,7 @@
 import math
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg, AssetBaseCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -23,7 +23,7 @@ from . import mdp
 # Pre-defined configs
 ##
 
-from smpl_hoi_learning.robots.smpl import SUB10_CFG
+from smpl_hoi_learning.assets import SUB10_CFG, CLOTHESSTAND_CFG
 
 ##
 # Scene definition
@@ -42,6 +42,9 @@ class SmplHoiLearningSceneCfg(InteractiveSceneCfg):
 
     # robot
     robot: ArticulationCfg = SUB10_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+
+    # object
+    object: RigidObjectCfg = CLOTHESSTAND_CFG.replace(prim_path="{ENV_REGEX_NS}/Object")
 
     # lights
     dome_light = AssetBaseCfg(

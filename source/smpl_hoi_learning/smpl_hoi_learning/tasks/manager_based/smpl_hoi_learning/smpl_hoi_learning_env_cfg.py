@@ -94,7 +94,7 @@ class CommandsCfg:
 class ActionsCfg:
     """Action specifications for the MDP."""
 
-    joint_effort = mdp.JointEffortActionCfg(asset_name="robot", joint_names=[".*"])
+    joint_pos = mdp.JointPositionActionCfg(asset_name="robot", joint_names=[".*"])
 
 
 @configclass
@@ -199,13 +199,8 @@ class RewardsCfg:
 class TerminationsCfg:
     """Termination terms for the MDP."""
 
-    # (1) Time out
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
-    # (2) Cart out of bounds
-    # cart_out_of_bounds = DoneTerm(
-    #     func=mdp.joint_pos_out_of_manual_limit,
-    #     params={"asset_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"]), "bounds": (-3.0, 3.0)},
-    # )
+
     anchor_pos = DoneTerm(
         func=mdp.bad_anchor_pos_z_only,
         params={"command_name": "motion", "threshold": 0.25},
@@ -237,7 +232,7 @@ class TerminationsCfg:
 @configclass
 class SmplHoiLearningEnvCfg(ManagerBasedRLEnvCfg):
     # Scene settings
-    scene: SmplHoiLearningSceneCfg = SmplHoiLearningSceneCfg(num_envs=512, env_spacing=4.0)
+    scene: SmplHoiLearningSceneCfg = SmplHoiLearningSceneCfg(num_envs=4096, env_spacing=4.0)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -252,7 +247,7 @@ class SmplHoiLearningEnvCfg(ManagerBasedRLEnvCfg):
         """Post initialization."""
         # general settings
         self.decimation = 2
-        self.episode_length_s = 5
+        self.episode_length_s = 10.0
         # viewer settings
         self.viewer.eye = (8.0, 0.0, 5.0)
         # simulation settings

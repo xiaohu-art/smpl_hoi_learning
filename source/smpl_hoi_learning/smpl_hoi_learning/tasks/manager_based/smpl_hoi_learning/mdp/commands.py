@@ -151,8 +151,8 @@ class MotionCommand(CommandTerm):
         self.metrics["error_body_pos"] = torch.norm(self.body_pos_w - self.robot_body_pos_w, dim=-1).mean(dim=-1)
         self.metrics["error_body_rot"] = quat_error_magnitude(self.body_quat_w, self.robot_body_quat_w).mean(dim=-1)
 
-        self.metrics["error_joint_pos"] = torch.norm(self.joint_pos[self.time_steps] - self.robot_joint_pos, dim=-1)
-        self.metrics["error_joint_vel"] = torch.norm(self.joint_vel[self.time_steps] - self.robot_joint_vel, dim=-1)
+        self.metrics["error_joint_pos"] = torch.norm(self.joint_pos - self.robot_joint_pos, dim=-1)
+        self.metrics["error_joint_vel"] = torch.norm(self.joint_vel - self.robot_joint_vel, dim=-1)
 
     def _resample_command(self, env_ids: Sequence[int]):
         if len(env_ids) == 0:

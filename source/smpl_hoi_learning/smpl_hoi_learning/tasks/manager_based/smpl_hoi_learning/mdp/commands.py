@@ -53,16 +53,10 @@ class MotionCommand(CommandTerm):
 
         self.metrics["error_anchor_pos"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["error_anchor_rot"] = torch.zeros(self.num_envs, device=self.device)
-        self.metrics["error_anchor_lin_vel"] = torch.zeros(self.num_envs, device=self.device)
-        self.metrics["error_anchor_ang_vel"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["error_body_pos"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["error_body_rot"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["error_joint_pos"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["error_joint_vel"] = torch.zeros(self.num_envs, device=self.device)
-
-        # TODO: the num of joints is 154 , hard code for now
-        self.body_pos_relative_w = self.motion._body_pos_w[self.time_steps]
-        self.body_quat_relative_w = self.motion._body_quat_w[self.time_steps]
 
     @property
     def command(self) -> torch.Tensor:  # TODO Consider again if this is the best observation
@@ -93,6 +87,22 @@ class MotionCommand(CommandTerm):
     def anchor_ang_vel_w(self) -> torch.Tensor:
         return self.motion._body_ang_vel_w[self.time_steps, self.robot_anchor_body_index]
     
+    @property
+    def body_pos_w(self) -> torch.Tensor:
+        return self.motion._body_pos_w[self.time_steps]
+
+    @property
+    def body_quat_w(self) -> torch.Tensor:
+        return self.motion._body_quat_w[self.time_steps]
+
+    @property
+    def body_lin_vel_w(self) -> torch.Tensor:
+        return self.motion._body_lin_vel_w[self.time_steps]
+
+    @property
+    def body_ang_vel_w(self) -> torch.Tensor:
+        return self.motion._body_ang_vel_w[self.time_steps]
+
     # robot data properties
     @property
     def robot_joint_pos(self) -> torch.Tensor:
@@ -137,13 +147,9 @@ class MotionCommand(CommandTerm):
     def _update_metrics(self):
         self.metrics["error_anchor_pos"] = torch.norm(self.anchor_pos_w - self.robot_anchor_pos_w, dim=-1)
         self.metrics["error_anchor_rot"] = quat_error_magnitude(self.anchor_quat_w, self.robot_anchor_quat_w)
-        self.metrics["error_anchor_lin_vel"] = torch.norm(self.anchor_lin_vel_w - self.robot_anchor_lin_vel_w, dim=-1)
-        self.metrics["error_anchor_ang_vel"] = torch.norm(self.anchor_ang_vel_w - self.robot_anchor_ang_vel_w, dim=-1)
 
-        self.metrics["error_body_pos"] = torch.norm(self.body_pos_relative_w - self.robot_body_pos_w, dim=-1).mean(dim=-1)
-        self.metrics["error_body_rot"] = quat_error_magnitude(self.body_quat_relative_w, self.robot_body_quat_w).mean(dim=-1)
-        self.metrics["error_body_lin_vel"] = torch.norm(self.motion._body_lin_vel_w[self.time_steps] - self.robot_body_lin_vel_w, dim=-1).mean(dim=-1)
-        self.metrics["error_body_ang_vel"] = torch.norm(self.motion._body_ang_vel_w [self.time_steps]- self.robot_body_ang_vel_w, dim=-1).mean(dim=-1)
+        self.metrics["error_body_pos"] = torch.norm(self.body_pos_w - self.robot_body_pos_w, dim=-1).mean(dim=-1)
+        self.metrics["error_body_rot"] = quat_error_magnitude(self.body_quat_w, self.robot_body_quat_w).mean(dim=-1)
 
         self.metrics["error_joint_pos"] = torch.norm(self.joint_pos[self.time_steps] - self.robot_joint_pos, dim=-1)
         self.metrics["error_joint_vel"] = torch.norm(self.joint_vel[self.time_steps] - self.robot_joint_vel, dim=-1)
@@ -189,29 +195,6 @@ class MotionCommand(CommandTerm):
         self.time_steps += 1
         env_ids_to_reset = torch.where(self.time_steps >= self.motion.time_step_total)[0]
         self._resample_command(env_ids_to_reset)
-
-        # hard code for now
-        body_pos_w = self.motion._body_pos_w[self.time_steps]
-        body_quat_w = self.motion._body_quat_w[self.time_steps]
-
-        anchor_pos_w_repeat = self.anchor_pos_w[:, None, :].repeat(1, 154, 1)
-        anchor_quat_w_repeat = self.anchor_quat_w[:, None, :].repeat(1, 154, 1)
-
-        robot_anchor_pos_w_repeat = self.robot_anchor_pos_w[:, None, :].repeat(1, 154, 1)
-        robot_anchor_quat_w_repeat = self.robot_anchor_quat_w[:, None, :].repeat(1, 154, 1)
-
-        delta_pos_w = robot_anchor_pos_w_repeat
-        delta_pos_w[..., 2] = anchor_pos_w_repeat[..., 2]
-
-        delta_ori_w = yaw_quat(
-            quat_mul(robot_anchor_quat_w_repeat, quat_inv(anchor_quat_w_repeat))
-        )
-
-        self.body_quat_relative_w = quat_mul(delta_ori_w, body_quat_w)
-        self.body_pos_relative_w = delta_pos_w + quat_apply(
-            delta_ori_w,
-            body_pos_w - anchor_pos_w_repeat
-        )
 
 
 SMPLH_BONE_ORDER_NAMES = [

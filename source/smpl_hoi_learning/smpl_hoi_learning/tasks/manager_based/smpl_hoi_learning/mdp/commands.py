@@ -65,11 +65,11 @@ class MotionCommand(CommandTerm):
     # motion data properties
     @property
     def joint_pos(self) -> torch.Tensor:
-        return self.motion.joint_pos
+        return self.motion.joint_pos[self.time_steps]
 
     @property
     def joint_vel(self) -> torch.Tensor:
-        return self.motion.joint_vel
+        return self.motion.joint_vel[self.time_steps]
 
     @property
     def anchor_pos_w(self) -> torch.Tensor:
@@ -89,7 +89,7 @@ class MotionCommand(CommandTerm):
     
     @property
     def body_pos_w(self) -> torch.Tensor:
-        return self.motion._body_pos_w[self.time_steps]
+        return self.motion._body_pos_w[self.time_steps] + self._env.scene.env_origins[:, None, :]
 
     @property
     def body_quat_w(self) -> torch.Tensor:
@@ -159,11 +159,10 @@ class MotionCommand(CommandTerm):
             return
         self.time_steps[env_ids]=0
 
-        root_pos = self.motion._body_pos_w[self.time_steps,0].clone()
-        root_pos[:, :2] += self._env.scene.env_origins[:, :2]
-        root_ori = self.motion._body_quat_w[self.time_steps, 0].clone()
-        root_lin_vel = self.motion._body_lin_vel_w[self.time_steps, 0].clone()
-        root_ang_vel = self.motion._body_ang_vel_w[self.time_steps, 0].clone()
+        root_pos = self.body_pos_w[:, 0].clone()
+        root_ori = self.body_quat_w[:, 0].clone()
+        root_lin_vel = self.body_lin_vel_w[:, 0].clone()
+        root_ang_vel = self.body_ang_vel_w[:, 0].clone()
 
         range_list = [self.cfg.pose_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
         ranges = torch.tensor(range_list, device=self.device)
@@ -177,9 +176,9 @@ class MotionCommand(CommandTerm):
         root_lin_vel[env_ids] += rand_samples[:, :3]
         root_ang_vel[env_ids] += rand_samples[:, 3:]
 
-        joint_pos = self.joint_pos[self.time_steps].clone()
-        joint_vel = self.joint_vel[self.time_steps].clone()
-        
+        joint_pos = self.joint_pos.clone()
+        joint_vel = self.joint_vel.clone()
+
         joint_pos += sample_uniform(*self.cfg.joint_position_range, joint_pos.shape, joint_pos.device)
         soft_joint_pos_limits = self.robot.data.soft_joint_pos_limits[env_ids]
         joint_pos[env_ids] = torch.clip(

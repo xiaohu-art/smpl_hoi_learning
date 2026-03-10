@@ -11,10 +11,8 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import ContactSensor
 from isaaclab.utils.math import quat_error_magnitude
 
-from whole_body_tracking.tasks.tracking.mdp.commands import MotionCommand
-
 from isaaclab.envs import ManagerBasedRLEnv
-
+from .commands import MotionCommand
 
 def _get_body_indexes(command: MotionCommand, body_names: list[str] | None) -> list[int]:
     return [i for i, name in enumerate(command.cfg.body_names) if (body_names is None) or (name in body_names)]

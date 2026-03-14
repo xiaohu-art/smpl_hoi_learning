@@ -15,7 +15,9 @@ from isaaclab.envs import ManagerBasedRLEnv
 from .commands import MotionCommand
 
 def _get_body_indexes(command: MotionCommand, body_names: list[str] | None) -> list[int]:
-    return [i for i, name in enumerate(command.cfg.body_names) if (body_names is None) or (name in body_names)]
+    # return [i for i, name in enumerate(command.cfg.body_names) if (body_names is None) or (name in body_names)]
+    return [command.robot.body_names.index(name) for i, name in enumerate(body_names) if (body_names is None) or (name in command.robot.body_names)]
+
 
 
 def motion_anchor_position_error_exp(env: ManagerBasedRLEnv, command_name: str, std: float) -> torch.Tensor:
@@ -33,7 +35,7 @@ def motion_anchor_orientation_error_exp(env: ManagerBasedRLEnv, command_name: st
 def motion_body_position_error_exp(
     env: ManagerBasedRLEnv, command_name: str, std: float, body_names: list[str] | None = None
 ) -> torch.Tensor:
-    command: MotionCommand = env.command_manager.get_term(command_name)
+    command: MotionCommand = env.command_manager.get_term(command_name)    
     body_indexes = _get_body_indexes(command, body_names)
     error = torch.sum(
         torch.square(command.body_pos_w[:, body_indexes] - command.robot_body_pos_w[:, body_indexes]), dim=-1

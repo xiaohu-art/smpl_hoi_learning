@@ -166,22 +166,22 @@ class RewardsCfg:
     motion_body_pos = RewTerm(
         func=mdp.motion_body_position_error_exp,
         weight=1.0,
-        params={"command_name": "motion", "std": 0.3},
+        params={"command_name": "motion", "std": 0.3,"body_names":mdp.body_names_cfg},
     )
     motion_body_ori = RewTerm(
         func=mdp.motion_body_orientation_error_exp,
         weight=1.0,
-        params={"command_name": "motion", "std": 0.4},
+        params={"command_name": "motion", "std": 0.4,"body_names":mdp.body_names_cfg},
     )
     motion_body_lin_vel = RewTerm(
         func=mdp.motion_body_linear_velocity_error_exp,
         weight=1.0,
-        params={"command_name": "motion", "std": 1.0},
+        params={"command_name": "motion", "std": 1.0,"body_names":mdp.body_names_cfg},
     )
     motion_body_ang_vel = RewTerm(
         func=mdp.motion_body_angular_velocity_error_exp,
         weight=1.0,
-        params={"command_name": "motion", "std": 3.14},
+        params={"command_name": "motion", "std": 3.14,"body_names":mdp.body_names_cfg},
     )
     # action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-1e-1)
     joint_limit = RewTerm(
@@ -232,7 +232,7 @@ class TerminationsCfg:
 @configclass
 class SmplHoiLearningEnvCfg(ManagerBasedRLEnvCfg):
     # Scene settings
-    scene: SmplHoiLearningSceneCfg = SmplHoiLearningSceneCfg(num_envs=4096, env_spacing=4.0)
+    scene: SmplHoiLearningSceneCfg = SmplHoiLearningSceneCfg(num_envs=1024, env_spacing=4.0)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()

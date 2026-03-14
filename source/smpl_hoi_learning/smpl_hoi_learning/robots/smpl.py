@@ -10,6 +10,7 @@ if not manager.is_extension_enabled("isaacsim.asset.importer.mjcf-2.5.13"):
 from smpl_hoi_learning.assets import SUB10_XML_PATH
 
 SUB10_CFG = ArticulationCfg(
+    debug_vis=True,
     spawn=sim_utils.MjcfFileCfg(
         asset_path=SUB10_XML_PATH,
         fix_base=False,

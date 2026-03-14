@@ -9,6 +9,7 @@ from collections.abc import Sequence
 from isaaclab.assets import Articulation
 from isaaclab.managers import CommandTerm,CommandTermCfg
 from isaaclab.envs import ManagerBasedRLEnv
+import isaaclab.sim as sim_utils
 from isaaclab.utils import configclass
 from isaaclab.utils.math import (
     quat_apply,
@@ -19,6 +20,8 @@ from isaaclab.utils.math import (
     sample_uniform,
     quat_from_euler_xyz,
 )
+from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
+from isaaclab.markers.config import FRAME_MARKER_CFG
 
 
 class MotionLoader:
@@ -195,6 +198,56 @@ class MotionCommand(CommandTerm):
         env_ids_to_reset = torch.where(self.time_steps >= self.motion.time_step_total)[0]
         self._resample_command(env_ids_to_reset)
 
+    def _set_debug_vis_impl(self, debug_vis: bool):
+        if debug_vis:
+            if not hasattr(self, "current_anchor_visualizer"):
+                self.current_anchor_visualizer = VisualizationMarkers(
+                    self.cfg.anchor_visualizer_cfg.replace(prim_path="/World/Visuals/Command/current/anchor")
+                )
+                self.goal_anchor_visualizer = VisualizationMarkers(
+                    self.cfg.anchor_visualizer_cfg.replace(prim_path="/World/Visuals/Command/goal/anchor")
+                )
+
+                self.current_body_visualizers = []
+                self.goal_body_visualizers = []
+                for _ in range(len(self.cfg.body_names)):
+                    self.current_body_visualizers.append(
+                        VisualizationMarkers(
+                            self.cfg.body_visualizer_cfg.replace(prim_path="/World/Visuals/testMarkers")
+                        )
+                    )
+                    self.goal_body_visualizers.append(
+                        VisualizationMarkers(
+                            self.cfg.body_visualizer_cfg.replace(prim_path="/World/Visuals/testMarkers")
+                        )
+                    )
+
+            self.current_anchor_visualizer.set_visibility(True)
+            self.goal_anchor_visualizer.set_visibility(True)
+            for i in range(len(self.cfg.body_names)):
+                self.current_body_visualizers[i].set_visibility(True)
+                self.goal_body_visualizers[i].set_visibility(True)
+
+        else:
+            if hasattr(self, "current_anchor_visualizer"):
+                self.current_anchor_visualizer.set_visibility(False)
+                self.goal_anchor_visualizer.set_visibility(False)
+                for i in range(len(self.cfg.body_names)):
+                    self.current_body_visualizers[i].set_visibility(False)
+                    self.goal_body_visualizers[i].set_visibility(False)
+
+    def _debug_vis_callback(self, event):
+        if not self.robot.is_initialized:
+            return
+
+        #self.current_anchor_visualizer.visualize(self.robot_anchor_pos_w, self.robot_anchor_quat_w)
+        self.goal_anchor_visualizer.visualize(self.anchor_pos_w, self.anchor_quat_w)
+
+        for i in range(len(self.cfg.body_names)):
+            #self.current_body_visualizers[i].visualize(self.robot_body_pos_w[:, i], self.robot_body_quat_w[:, i])
+            #self.goal_body_visualizers[i].visualize(self.body_pos_relative_w[:, i], self.body_quat_relative_w[:, i])
+            self.goal_body_visualizers[i].visualize(self.body_pos_w[:, i], self.body_quat_w[:, i])
+
 
 SMPLH_BONE_ORDER_NAMES = [
     "Pelvis",
@@ -251,13 +304,30 @@ SMPLH_BONE_ORDER_NAMES = [
     "R_Thumb3",
 ]
 
+joint_names_cfg=[
+    "L_Hip_.*", "R_Hip_.*", "L_Knee_.*", "R_Knee_.*", "L_Ankle_.*", "R_Ankle_.*", "L_Toe_.*", "R_Toe_.*",
+    "Torso_.*", "Spine_.*", "Chest_.*","L_Thorax_.*","R_Thorax_.*","L_Shoulder_.*","R_Shoulder_.*","L_Elbow_.*","R_Elbow_.*","L_Wrist_.*","R_Wrist_.*",
+    "Neck_.*","Head_.*"
+]
+
+body_names_cfg=[
+    "L_Hip", "R_Hip", "L_Knee", "R_Knee", "L_Ankle", "R_Ankle", "L_Toe", "R_Toe",
+    "Torso", "Spine", "Chest","L_Thorax","R_Thorax","L_Shoulder","R_Shoulder","L_Elbow","R_Elbow","L_Wrist","R_Wrist",
+    "Neck","Head"
+]
+
 @configclass
 class MotionCommandCfg(CommandTermCfg):
     class_type: type = MotionCommand
     asset_name: str = "robot"
-    body_names: Sequence[str] = (".*",)
+    body_names: Sequence[str] = joint_names_cfg
     anchor_body_name: str = "Pelvis"
     motion_file: str = "./data/example.npz"
     pose_range: dict[str, tuple[float, float]] = {}
     velocity_range: dict[str, tuple[float, float]] = {}
     joint_position_range: tuple[float, float] = (-0.1, 0.1)
+    anchor_visualizer_cfg: VisualizationMarkersCfg = FRAME_MARKER_CFG.replace(prim_path="/World/Visuals/Command/pose")
+    anchor_visualizer_cfg.markers["frame"].scale = (0.2, 0.2, 0.2)
+
+    body_visualizer_cfg: VisualizationMarkersCfg = FRAME_MARKER_CFG.replace(prim_path="/World/Visuals/Command/pose")
+    body_visualizer_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)

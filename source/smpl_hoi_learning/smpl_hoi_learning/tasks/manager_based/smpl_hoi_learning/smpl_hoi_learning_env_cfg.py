@@ -94,7 +94,21 @@ class CommandsCfg:
 class ActionsCfg:
     """Action specifications for the MDP."""
 
-    joint_pos = mdp.JointPositionActionCfg(asset_name="robot", joint_names=[".*"])
+    joint_pos = mdp.JointPositionActionCfg(
+        asset_name="robot", 
+        joint_names=[
+            "L_Hip_.*", "R_Hip_.*", 
+            "L_Knee_.*", "R_Knee_.*", 
+            "L_Ankle_.*", "R_Ankle_.*", 
+            "L_Toe_.*", "R_Toe_.*",
+            "Torso_.*", "Spine_.*", "Chest_.*",
+            "L_Thorax_.*","R_Thorax_.*",
+            "L_Shoulder_.*","R_Shoulder_.*",
+            "L_Elbow_.*","R_Elbow_.*",
+            "L_Wrist_.*","R_Wrist_.*",
+            "Neck_.*","Head_.*"
+        ]
+    )
 
 
 @configclass
@@ -105,20 +119,15 @@ class ObservationsCfg:
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
 
-        # observation terms (order preserved)
         command = ObsTerm(func=mdp.generated_commands, params={"command_name": "motion"})
-        motion_anchor_pos_b = ObsTerm(
-            func=mdp.motion_anchor_pos_b, params={"command_name": "motion"}, noise=Unoise(n_min=-0.25, n_max=0.25)
-        )
-        motion_anchor_ori_b = ObsTerm(
-            func=mdp.motion_anchor_ori_b, params={"command_name": "motion"}, noise=Unoise(n_min=-0.05, n_max=0.05)
-        )
+        motion_anchor_pos_b = ObsTerm(func=mdp.motion_anchor_pos_b, params={"command_name": "motion"})
+        motion_anchor_ori_b = ObsTerm(func=mdp.motion_anchor_ori_b, params={"command_name": "motion"})
         body_pos = ObsTerm(func=mdp.robot_body_pos_b, params={"command_name": "motion"})
         body_ori = ObsTerm(func=mdp.robot_body_ori_b, params={"command_name": "motion"})
-        base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.5, n_max=0.5))
-        base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2))
-        joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
-        joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-0.5, n_max=0.5))
+        base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
+        base_ang_vel = ObsTerm(func=mdp.base_ang_vel)
+        joint_pos = ObsTerm(func=mdp.joint_pos_rel)
+        joint_vel = ObsTerm(func=mdp.joint_vel_rel)
         actions = ObsTerm(func=mdp.last_action)
 
         def __post_init__(self):
@@ -166,33 +175,29 @@ class RewardsCfg:
     motion_body_pos = RewTerm(
         func=mdp.motion_body_position_error_exp,
         weight=1.0,
-        params={"command_name": "motion", "std": 0.3,"body_names":mdp.body_names_cfg},
+        params={"command_name": "motion", "std": 0.3},
     )
     motion_body_ori = RewTerm(
         func=mdp.motion_body_orientation_error_exp,
         weight=1.0,
-        params={"command_name": "motion", "std": 0.4,"body_names":mdp.body_names_cfg},
+        params={"command_name": "motion", "std": 0.4},
     )
     motion_body_lin_vel = RewTerm(
         func=mdp.motion_body_linear_velocity_error_exp,
         weight=1.0,
-        params={"command_name": "motion", "std": 1.0,"body_names":mdp.body_names_cfg},
+        params={"command_name": "motion", "std": 1.0},
     )
     motion_body_ang_vel = RewTerm(
         func=mdp.motion_body_angular_velocity_error_exp,
         weight=1.0,
-        params={"command_name": "motion", "std": 3.14,"body_names":mdp.body_names_cfg},
+        params={"command_name": "motion", "std": 3.14},
     )
-    # action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-1e-1)
+    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-1e-5)
     joint_limit = RewTerm(
         func=mdp.joint_pos_limits,
         weight=-10.0,
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*"])},
     )
-    # (1) Constant running reward
-    # alive = RewTerm(func=mdp.is_alive, weight=1.0)
-    # (2) Failure penalty
-    terminating = RewTerm(func=mdp.is_terminated, weight=-2.0)
 
 
 @configclass
@@ -215,10 +220,10 @@ class TerminationsCfg:
             "command_name": "motion",
             "threshold": 0.25,
             "body_names": [
-                "left_ankle_roll_link",
-                "right_ankle_roll_link",
-                "left_wrist_yaw_link",
-                "right_wrist_yaw_link",
+                "L_Ankle",
+                "R_Ankle",
+                "L_Wrist",
+                "R_Wrist",
             ],
         },
     )
@@ -246,7 +251,7 @@ class SmplHoiLearningEnvCfg(ManagerBasedRLEnvCfg):
     def __post_init__(self) -> None:
         """Post initialization."""
         # general settings
-        self.decimation = 2
+        self.decimation = 4
         self.episode_length_s = 10.0
         # viewer settings
         self.viewer.eye = (8.0, 0.0, 5.0)

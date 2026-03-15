@@ -12,7 +12,6 @@ from isaaclab.assets import Articulation, RigidObject
 from isaaclab.managers import SceneEntityCfg
 
 from .commands import MotionCommand
-from .rewards import _get_body_indexes
 
 
 def bad_anchor_pos(env: ManagerBasedRLEnv, command_name: str, threshold: float) -> torch.Tensor:
@@ -49,8 +48,10 @@ def bad_motion_body_pos(
 ) -> torch.Tensor:
     command: MotionCommand = env.command_manager.get_term(command_name)
 
-    body_indexes = _get_body_indexes(command, body_names)
-    error = torch.norm(command.body_pos_w[:, body_indexes] - command.robot_body_pos_w[:, body_indexes], dim=-1)
+    body_indices = command.robot.find_bodies(body_names, preserve_order=True)[0]
+    error = torch.norm(
+        command.body_pos_w[:, body_indices] - command.robot_body_pos_w[:, body_indices], 
+    dim=-1)
     return torch.any(error > threshold, dim=-1)
 
 
@@ -59,6 +60,8 @@ def bad_motion_body_pos_z_only(
 ) -> torch.Tensor:
     command: MotionCommand = env.command_manager.get_term(command_name)
 
-    body_indexes = _get_body_indexes(command, body_names)
-    error = torch.abs(command.body_pos_w[:, body_indexes, -1] - command.robot_body_pos_w[:, body_indexes, -1])
+    body_indices = command.robot.find_bodies(body_names, preserve_order=True)[0]
+    error = torch.abs(
+        command.body_pos_w[:, body_indices, -1] - command.robot_body_pos_w[:, body_indices, -1]
+    )
     return torch.any(error > threshold, dim=-1)

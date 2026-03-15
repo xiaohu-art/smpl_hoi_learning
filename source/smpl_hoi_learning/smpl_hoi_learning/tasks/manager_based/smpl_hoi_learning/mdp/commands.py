@@ -46,8 +46,8 @@ class MotionCommand(CommandTerm):
     def __init__(self, cfg:CommandTermCfg,env:ManagerBasedRLEnv):
         super().__init__(cfg,env)
         self.robot: Articulation = env.scene[cfg.asset_name]
-        # self.body_indexes = torch.tensor(self.robot.find_bodies(self.cfg.body_names, preserve_order=True)[0], dtype=torch.long, device=self.device)
-        self.robot_anchor_body_index = self.robot.body_names.index(self.cfg.anchor_body_name)
+        self.anchor_index = self.robot.body_names.index(self.cfg.anchor_body_name)
+        self.body_indices, self.body_names = self.robot.find_bodies(self.cfg.body_names, preserve_order=True)
 
         #TODO: maybe need : motion_body = motion_data[:, self.body_ids]
         self.motion = MotionLoader(self.cfg.motion_file, device=self.device)
@@ -76,19 +76,19 @@ class MotionCommand(CommandTerm):
 
     @property
     def anchor_pos_w(self) -> torch.Tensor:
-        return self.motion._body_pos_w[self.time_steps, self.robot_anchor_body_index] + self._env.scene.env_origins # TODO: env_origins need to verify its correctness
+        return self.motion._body_pos_w[self.time_steps, self.anchor_index] + self._env.scene.env_origins # TODO: env_origins need to verify its correctness
 
     @property
     def anchor_quat_w(self) -> torch.Tensor:
-        return self.motion._body_quat_w[self.time_steps, self.robot_anchor_body_index]
+        return self.motion._body_quat_w[self.time_steps, self.anchor_index]
 
     @property
     def anchor_lin_vel_w(self) -> torch.Tensor:
-        return self.motion._body_lin_vel_w[self.time_steps, self.robot_anchor_body_index]
+        return self.motion._body_lin_vel_w[self.time_steps, self.anchor_index]
 
     @property
     def anchor_ang_vel_w(self) -> torch.Tensor:
-        return self.motion._body_ang_vel_w[self.time_steps, self.robot_anchor_body_index]
+        return self.motion._body_ang_vel_w[self.time_steps, self.anchor_index]
     
     @property
     def body_pos_w(self) -> torch.Tensor:
@@ -133,26 +133,30 @@ class MotionCommand(CommandTerm):
 
     @property
     def robot_anchor_pos_w(self) -> torch.Tensor:
-        return self.robot.data.body_pos_w[:, self.robot_anchor_body_index]
+        return self.robot.data.body_pos_w[:, self.anchor_index]
 
     @property
     def robot_anchor_quat_w(self) -> torch.Tensor:
-        return self.robot.data.body_quat_w[:, self.robot_anchor_body_index]
+        return self.robot.data.body_quat_w[:, self.anchor_index]
 
     @property
     def robot_anchor_lin_vel_w(self) -> torch.Tensor:
-        return self.robot.data.body_lin_vel_w[:, self.robot_anchor_body_index]
+        return self.robot.data.body_lin_vel_w[:, self.anchor_index]
 
     @property
     def robot_anchor_ang_vel_w(self) -> torch.Tensor:
-        return self.robot.data.body_ang_vel_w[:, self.robot_anchor_body_index]
+        return self.robot.data.body_ang_vel_w[:, self.anchor_index]
 
     def _update_metrics(self):
         self.metrics["error_anchor_pos"] = torch.norm(self.anchor_pos_w - self.robot_anchor_pos_w, dim=-1)
         self.metrics["error_anchor_rot"] = quat_error_magnitude(self.anchor_quat_w, self.robot_anchor_quat_w)
 
-        self.metrics["error_body_pos"] = torch.norm(self.body_pos_w - self.robot_body_pos_w, dim=-1).mean(dim=-1)
-        self.metrics["error_body_rot"] = quat_error_magnitude(self.body_quat_w, self.robot_body_quat_w).mean(dim=-1)
+        self.metrics["error_body_pos"] = torch.norm(
+            self.body_pos_w[:, self.body_indices] - self.robot_body_pos_w[:, self.body_indices], dim=-1
+        ).mean(dim=-1)
+        self.metrics["error_body_rot"] = quat_error_magnitude(
+            self.body_quat_w[:, self.body_indices], self.robot_body_quat_w[:, self.body_indices]
+        ).mean(dim=-1)
 
         self.metrics["error_joint_pos"] = torch.norm(self.joint_pos - self.robot_joint_pos, dim=-1)
         self.metrics["error_joint_vel"] = torch.norm(self.joint_vel - self.robot_joint_vel, dim=-1)
@@ -243,10 +247,9 @@ class MotionCommand(CommandTerm):
         #self.current_anchor_visualizer.visualize(self.robot_anchor_pos_w, self.robot_anchor_quat_w)
         self.goal_anchor_visualizer.visualize(self.anchor_pos_w, self.anchor_quat_w)
 
-        for i in range(len(self.cfg.body_names)):
+        for i in range(len(self.body_indices)):
             #self.current_body_visualizers[i].visualize(self.robot_body_pos_w[:, i], self.robot_body_quat_w[:, i])
-            #self.goal_body_visualizers[i].visualize(self.body_pos_relative_w[:, i], self.body_quat_relative_w[:, i])
-            self.goal_body_visualizers[i].visualize(self.body_pos_w[:, i], self.body_quat_w[:, i])
+            self.goal_body_visualizers[i].visualize(self.body_pos_w[:, self.body_indices[i]], self.body_quat_w[:, self.body_indices[i]])
 
 
 SMPLH_BONE_ORDER_NAMES = [
@@ -304,23 +307,22 @@ SMPLH_BONE_ORDER_NAMES = [
     "R_Thumb3",
 ]
 
-joint_names_cfg=[
-    "L_Hip_.*", "R_Hip_.*", "L_Knee_.*", "R_Knee_.*", "L_Ankle_.*", "R_Ankle_.*", "L_Toe_.*", "R_Toe_.*",
-    "Torso_.*", "Spine_.*", "Chest_.*","L_Thorax_.*","R_Thorax_.*","L_Shoulder_.*","R_Shoulder_.*","L_Elbow_.*","R_Elbow_.*","L_Wrist_.*","R_Wrist_.*",
-    "Neck_.*","Head_.*"
-]
-
-body_names_cfg=[
-    "L_Hip", "R_Hip", "L_Knee", "R_Knee", "L_Ankle", "R_Ankle", "L_Toe", "R_Toe",
-    "Torso", "Spine", "Chest","L_Thorax","R_Thorax","L_Shoulder","R_Shoulder","L_Elbow","R_Elbow","L_Wrist","R_Wrist",
-    "Neck","Head"
-]
-
 @configclass
 class MotionCommandCfg(CommandTermCfg):
     class_type: type = MotionCommand
     asset_name: str = "robot"
-    body_names: Sequence[str] = joint_names_cfg
+    body_names: Sequence[str] = [
+        "L_Hip", "R_Hip", 
+        "L_Knee", "R_Knee", 
+        "L_Ankle", "R_Ankle", 
+        "L_Toe", "R_Toe",
+        "Torso", "Spine", "Chest",
+        "L_Thorax", "R_Thorax",
+        "L_Shoulder","R_Shoulder",
+        "L_Elbow", "R_Elbow",
+        "L_Wrist", "R_Wrist",
+        "Neck","Head"
+    ]
     anchor_body_name: str = "Pelvis"
     motion_file: str = "./data/example.npz"
     pose_range: dict[str, tuple[float, float]] = {}

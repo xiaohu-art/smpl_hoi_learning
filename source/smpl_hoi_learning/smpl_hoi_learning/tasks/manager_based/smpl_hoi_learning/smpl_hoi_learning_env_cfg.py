@@ -122,6 +122,8 @@ class ObservationsCfg:
         command = ObsTerm(func=mdp.generated_commands, params={"command_name": "motion"})
         motion_anchor_pos_b = ObsTerm(func=mdp.motion_anchor_pos_b, params={"command_name": "motion"})
         motion_anchor_ori_b = ObsTerm(func=mdp.motion_anchor_ori_b, params={"command_name": "motion"})
+        motion_body_pos_b = ObsTerm(func=mdp.motion_body_pos_b, params={"command_name": "motion"})
+        motion_body_ori_b = ObsTerm(func=mdp.motion_body_ori_b, params={"command_name": "motion"})
         body_pos = ObsTerm(func=mdp.robot_body_pos_b, params={"command_name": "motion"})
         body_ori = ObsTerm(func=mdp.robot_body_ori_b, params={"command_name": "motion"})
         base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
@@ -139,6 +141,8 @@ class ObservationsCfg:
         command = ObsTerm(func=mdp.generated_commands, params={"command_name": "motion"})
         motion_anchor_pos_b = ObsTerm(func=mdp.motion_anchor_pos_b, params={"command_name": "motion"})
         motion_anchor_ori_b = ObsTerm(func=mdp.motion_anchor_ori_b, params={"command_name": "motion"})
+        motion_body_pos_b = ObsTerm(func=mdp.motion_body_pos_b, params={"command_name": "motion"})
+        motion_body_ori_b = ObsTerm(func=mdp.motion_body_ori_b, params={"command_name": "motion"})
         body_pos = ObsTerm(func=mdp.robot_body_pos_b, params={"command_name": "motion"})
         body_ori = ObsTerm(func=mdp.robot_body_ori_b, params={"command_name": "motion"})
         base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
@@ -164,12 +168,12 @@ class RewardsCfg:
     # (0) example
     motion_anchor_pos = RewTerm(
         func=mdp.motion_anchor_position_error_exp,
-        weight=0.5,
+        weight=1.0,
         params={"command_name": "motion", "std": 0.3},
     )
     motion_anchor_ori = RewTerm(
         func=mdp.motion_anchor_orientation_error_exp,
-        weight=0.5,
+        weight=1.0,
         params={"command_name": "motion", "std": 0.4},
     )
     motion_body_pos = RewTerm(
@@ -182,17 +186,17 @@ class RewardsCfg:
         weight=1.0,
         params={"command_name": "motion", "std": 0.4},
     )
-    motion_body_lin_vel = RewTerm(
-        func=mdp.motion_body_linear_velocity_error_exp,
-        weight=1.0,
-        params={"command_name": "motion", "std": 1.0},
-    )
-    motion_body_ang_vel = RewTerm(
-        func=mdp.motion_body_angular_velocity_error_exp,
-        weight=1.0,
-        params={"command_name": "motion", "std": 3.14},
-    )
-    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-1e-5)
+    # motion_body_lin_vel = RewTerm(
+    #     func=mdp.motion_body_linear_velocity_error_exp,
+    #     weight=1.0,
+    #     params={"command_name": "motion", "std": 1.0},
+    # )
+    # motion_body_ang_vel = RewTerm(
+    #     func=mdp.motion_body_angular_velocity_error_exp,
+    #     weight=1.0,
+    #     params={"command_name": "motion", "std": 3.14},
+    # )
+    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.01)
     joint_limit = RewTerm(
         func=mdp.joint_pos_limits,
         weight=-10.0,
@@ -207,7 +211,7 @@ class TerminationsCfg:
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
 
     anchor_pos = DoneTerm(
-        func=mdp.bad_anchor_pos_z_only,
+        func=mdp.bad_anchor_pos,
         params={"command_name": "motion", "threshold": 0.25},
     )
     anchor_ori = DoneTerm(

@@ -46,6 +46,7 @@ class MotionCommand(CommandTerm):
     def __init__(self, cfg:CommandTermCfg,env:ManagerBasedRLEnv):
         super().__init__(cfg,env)
         self.robot: Articulation = env.scene[cfg.asset_name]
+
         self.anchor_index = self.robot.body_names.index(self.cfg.anchor_body_name)
         self.body_indices, self.body_names = self.robot.find_bodies(self.cfg.body_names, preserve_order=True)
 
@@ -164,12 +165,17 @@ class MotionCommand(CommandTerm):
     def _resample_command(self, env_ids: Sequence[int]):
         if len(env_ids) == 0:
             return
-        self.time_steps[env_ids]=0
+        
+        random_frames = torch.randint(
+            0, self.motion.time_step_total, (len(env_ids),),
+            device=self.device, dtype=torch.long
+        )
+        self.time_steps[env_ids] = random_frames
 
-        root_pos = self.body_pos_w[:, 0].clone()
-        root_ori = self.body_quat_w[:, 0].clone()
-        root_lin_vel = self.body_lin_vel_w[:, 0].clone()
-        root_ang_vel = self.body_ang_vel_w[:, 0].clone()
+        root_pos = self.anchor_pos_w.clone()
+        root_ori = self.anchor_quat_w.clone()
+        root_lin_vel = self.anchor_lin_vel_w.clone()
+        root_ang_vel = self.anchor_ang_vel_w.clone()
 
         range_list = [self.cfg.pose_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
         ranges = torch.tensor(range_list, device=self.device)

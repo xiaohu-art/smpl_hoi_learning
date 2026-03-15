@@ -30,12 +30,12 @@ def bad_anchor_ori(
     asset: RigidObject | Articulation = env.scene[asset_cfg.name]
 
     command: MotionCommand = env.command_manager.get_term(command_name)
-    motion_projected_gravity_b = math_utils.quat_rotate_inverse(
+    motion_projected_gravity_b = math_utils.quat_apply_inverse(
     command.anchor_quat_w,
     asset.data.GRAVITY_VEC_W
 )
 
-    robot_projected_gravity_b = math_utils.quat_rotate_inverse(
+    robot_projected_gravity_b = math_utils.quat_apply_inverse(
     command.robot_anchor_quat_w,
     asset.data.GRAVITY_VEC_W
 )

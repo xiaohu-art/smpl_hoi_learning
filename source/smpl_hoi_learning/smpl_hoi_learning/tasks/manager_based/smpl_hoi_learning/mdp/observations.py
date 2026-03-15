@@ -32,6 +32,29 @@ def motion_anchor_ori_b(env: ManagerBasedEnv, command_name: str) -> torch.Tensor
     mat = matrix_from_quat(ori)
     return mat[..., :2].reshape(mat.shape[0], -1)
 
+def motion_body_pos_b(env: ManagerBasedEnv, command_name: str) -> torch.Tensor:
+    command: MotionCommand = env.command_manager.get_term(command_name)
+    body_indices = command.body_indices
+    pos_b, _ = subtract_frame_transforms(
+        command.robot_anchor_pos_w[:, None, :].repeat(1, len(body_indices), 1),
+        command.robot_anchor_quat_w[:, None, :].repeat(1, len(body_indices), 1),
+        command.body_pos_w[:, body_indices],
+        command.body_quat_w[:, body_indices],
+    )
+    return pos_b.view(env.num_envs, -1)
+
+
+def motion_body_ori_b(env: ManagerBasedEnv, command_name: str) -> torch.Tensor:
+    command: MotionCommand = env.command_manager.get_term(command_name)
+    body_indices = command.body_indices
+    _, ori_b = subtract_frame_transforms(
+        command.robot_anchor_pos_w[:, None, :].repeat(1, len(body_indices), 1),
+        command.robot_anchor_quat_w[:, None, :].repeat(1, len(body_indices), 1),
+        command.body_pos_w[:, body_indices],
+        command.body_quat_w[:, body_indices],
+    )
+    mat = matrix_from_quat(ori_b)
+    return mat[..., :2].reshape(mat.shape[0], -1)
 
 def robot_anchor_lin_vel_w(env: ManagerBasedEnv, command_name: str) -> torch.Tensor:
     command: MotionCommand = env.command_manager.get_term(command_name)
@@ -53,7 +76,7 @@ def robot_body_pos_b(env: ManagerBasedEnv, command_name: str) -> torch.Tensor:
         command.robot_body_pos_w[:, body_indices],
         command.robot_body_quat_w[:, body_indices],
     )
-    
+
     return pos_b.view(env.num_envs, -1)
 
 

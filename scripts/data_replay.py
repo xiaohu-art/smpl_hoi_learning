@@ -50,7 +50,7 @@ from isaaclab.utils.math import matrix_from_quat, quat_from_matrix, quat_unique,
 # Pre-defined configs
 ##
 
-from smpl_hoi_learning.robots.smpl import SUB10_CFG
+from smpl_hoi_learning.robots.smpl import SUB16_CFG
 
 SMPLH_BONE_ORDER_NAMES = [
     "Pelvis",
@@ -124,7 +124,7 @@ class ReplayMotionsSceneCfg(InteractiveSceneCfg):
     )
 
     # articulation
-    robot = SUB10_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot = SUB16_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
 class MotionLoader:
     def __init__(

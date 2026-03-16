@@ -7,12 +7,12 @@ manager = omni.kit.app.get_app().get_extension_manager()
 if not manager.is_extension_enabled("isaacsim.asset.importer.mjcf-2.5.13"):
     manager.set_extension_enabled_immediate("isaacsim.asset.importer.mjcf-2.5.13", True)
 
-from smpl_hoi_learning.assets import SUB10_XML_PATH
+from smpl_hoi_learning.assets import *
 
-SUB10_CFG = ArticulationCfg(
+SMPLH_CFG = ArticulationCfg(
     debug_vis=True,
     spawn=sim_utils.MjcfFileCfg(
-        asset_path=SUB10_XML_PATH,
+        asset_path=None,
         fix_base=False,
         make_instanceable=False,
         force_usd_conversion=True,
@@ -74,3 +74,9 @@ SUB10_CFG = ArticulationCfg(
     }
     
 )
+
+SUB10_CFG = SMPLH_CFG.copy()
+SUB10_CFG.spawn.asset_path = SUB10_XML_PATH
+
+SUB16_CFG = SMPLH_CFG.copy()
+SUB16_CFG.spawn.asset_path = SUB16_XML_PATH

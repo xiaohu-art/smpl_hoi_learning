@@ -186,17 +186,27 @@ class RewardsCfg:
         weight=1.0,
         params={"command_name": "motion", "std": 0.4},
     )
-    # motion_body_lin_vel = RewTerm(
-    #     func=mdp.motion_body_linear_velocity_error_exp,
-    #     weight=1.0,
-    #     params={"command_name": "motion", "std": 1.0},
-    # )
-    # motion_body_ang_vel = RewTerm(
-    #     func=mdp.motion_body_angular_velocity_error_exp,
-    #     weight=1.0,
-    #     params={"command_name": "motion", "std": 3.14},
-    # )
-    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.01)
+    motion_body_lin_vel = RewTerm(
+        func=mdp.motion_body_linear_velocity_error_exp,
+        weight=1.0,
+        params={"command_name": "motion", "std": 1.0},
+    )
+    motion_body_ang_vel = RewTerm(
+        func=mdp.motion_body_angular_velocity_error_exp,
+        weight=1.0,
+        params={"command_name": "motion", "std": 3.14},
+    )
+    motion_joint_pos = RewTerm(
+        func=mdp.motion_joint_position_error_exp,
+        weight=1.0,
+        params={"command_name": "motion", "std": 3.0},
+    )
+    motion_joint_vel = RewTerm(
+        func=mdp.motion_joint_velocity_error_exp,
+        weight=1.0,
+        params={"command_name": "motion", "std": 8.0},
+    )
+    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.05)
     joint_limit = RewTerm(
         func=mdp.joint_pos_limits,
         weight=-10.0,

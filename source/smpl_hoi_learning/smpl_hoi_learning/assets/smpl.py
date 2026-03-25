@@ -7,7 +7,7 @@ manager = omni.kit.app.get_app().get_extension_manager()
 if not manager.is_extension_enabled("isaacsim.asset.importer.mjcf-2.5.13"):
     manager.set_extension_enabled_immediate("isaacsim.asset.importer.mjcf-2.5.13", True)
 
-from smpl_hoi_learning.assets import *
+from smpl_hoi_learning.robots import *
 
 SMPLH_CFG = ArticulationCfg(
     debug_vis=True,

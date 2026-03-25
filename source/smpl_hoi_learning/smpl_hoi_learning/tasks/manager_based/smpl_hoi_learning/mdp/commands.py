@@ -6,7 +6,7 @@ import numpy as np
 import os
 from collections.abc import Sequence
 
-from isaaclab.assets import Articulation
+from isaaclab.assets import Articulation, RigidObject
 from isaaclab.managers import CommandTerm,CommandTermCfg
 from isaaclab.envs import ManagerBasedRLEnv
 import isaaclab.sim as sim_utils
@@ -38,6 +38,10 @@ class MotionLoader:
         self._body_quat_w = torch.tensor(data["body_quat_w"], dtype=torch.float32, device=device)
         self._body_lin_vel_w = torch.tensor(data["body_lin_vel_w"], dtype=torch.float32, device=device)
         self._body_ang_vel_w = torch.tensor(data["body_ang_vel_w"], dtype=torch.float32, device=device)
+        self._object_pos_w = torch.tensor(data["object_pos_w"], dtype=torch.float32, device=device)
+        self._object_quat_w = torch.tensor(data["object_quat_w"], dtype=torch.float32, device=device)
+        self._object_lin_vel_w = torch.tensor(data["object_lin_vel_w"], dtype=torch.float32, device=device)
+        self._object_ang_vel_w = torch.tensor(data["object_ang_vel_w"], dtype=torch.float32, device=device)
         self.time_step_total = self.joint_pos.shape[0]
 
 class MotionCommand(CommandTerm):
@@ -46,7 +50,8 @@ class MotionCommand(CommandTerm):
     def __init__(self, cfg:CommandTermCfg,env:ManagerBasedRLEnv):
         super().__init__(cfg,env)
         self.robot: Articulation = env.scene[cfg.asset_name]
-
+        self.object: RigidObject = env.scene[cfg.object_name]
+        
         self.anchor_index = self.robot.body_names.index(self.cfg.anchor_body_name)
         self.body_indices, self.body_names = self.robot.find_bodies(self.cfg.body_names, preserve_order=True)
 
@@ -208,6 +213,16 @@ class MotionCommand(CommandTerm):
         env_ids_to_reset = torch.where(self.time_steps >= self.motion.time_step_total)[0]
         self._resample_command(env_ids_to_reset)
 
+        # set object state
+        object_states = self.object.data.default_root_state.clone()
+        object_states[:, :3] = self.motion._object_pos_w[self.time_steps]
+        object_states[:, :2] += self._env.scene.env_origins[:, :2]
+        object_states[:, 3:7] = self.motion._object_quat_w[self.time_steps]
+        object_states[:, 7:10] = self.motion._object_lin_vel_w[self.time_steps]
+        object_states[:, 10:] = self.motion._object_ang_vel_w[self.time_steps]
+        self.object.write_root_state_to_sim(object_states)
+
+
     def _set_debug_vis_impl(self, debug_vis: bool):
         if debug_vis:
             if not hasattr(self, "current_anchor_visualizer"):
@@ -317,6 +332,7 @@ SMPLH_BONE_ORDER_NAMES = [
 class MotionCommandCfg(CommandTermCfg):
     class_type: type = MotionCommand
     asset_name: str = "robot"
+    object_name: str = "object"
     body_names: Sequence[str] = [
         "L_Hip", "R_Hip", 
         "L_Knee", "R_Knee", 

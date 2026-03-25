@@ -50,7 +50,7 @@ from isaaclab.utils.math import matrix_from_quat, quat_from_matrix, quat_unique,
 # Pre-defined configs
 ##
 
-from smpl_hoi_learning.robots.smpl import SUB16_CFG
+from smpl_hoi_learning.assets.smpl import SUB10_CFG, CLOTHESSTAND_CFG
 
 SMPLH_BONE_ORDER_NAMES = [
     "Pelvis",
@@ -125,6 +125,9 @@ class ReplayMotionsSceneCfg(InteractiveSceneCfg):
 
     # articulation
     robot = SUB16_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+
+    # object
+    object = CLOTHESSTAND_CFG.replace(prim_path="{ENV_REGEX_NS}/Object")
 
 class MotionLoader:
     def __init__(
@@ -314,6 +317,8 @@ def process_single_motion(sim: sim_utils.SimulationContext, scene: InteractiveSc
     robot = scene["robot"]
     robot_joint_indexes, robot_joint_names = robot.find_joints(joint_names, preserve_order=True)
 
+    object = scene["object"]
+
     # ------- data logger -------------------------------------------------------
     log = {
         "fps": [args_cli.output_fps],
@@ -364,6 +369,15 @@ def process_single_motion(sim: sim_utils.SimulationContext, scene: InteractiveSc
         joint_pos[:, robot_joint_indexes] = human_dof_pos
         joint_vel[:, robot_joint_indexes] = human_dof_vel
         robot.write_joint_state_to_sim(joint_pos, joint_vel)
+
+        # set object state
+        object_state = object.data.default_root_state.clone()
+        object_state[:, :3] = object_base_pos
+        object_state[:, :2] += scene.env_origins[:, :2]
+        object_state[:, 3:7] = object_base_rot
+        object_state[:, 7:10] = object_base_lin_vel
+        object_state[:, 10:] = object_base_ang_vel
+        object.write_root_state_to_sim(object_state)
         
         sim.render()  # We don't want physic (sim.step())
         scene.update(sim.get_physics_dt())
@@ -375,12 +389,11 @@ def process_single_motion(sim: sim_utils.SimulationContext, scene: InteractiveSc
             log["body_quat_w"].append(robot.data.body_quat_w[0, :].cpu().numpy().copy())
             log["body_lin_vel_w"].append(robot.data.body_lin_vel_w[0, :].cpu().numpy().copy())
             log["body_ang_vel_w"].append(robot.data.body_ang_vel_w[0, :].cpu().numpy().copy())
-            obj_pos = object_base_pos.clone()
-            obj_pos[:, :2] += scene.env_origins[:, :2]
-            log["object_pos_w"].append(obj_pos[0, :].cpu().numpy().copy())
-            log["object_quat_w"].append(object_base_rot[0, :].cpu().numpy().copy())
-            log["object_lin_vel_w"].append(object_base_lin_vel[0, :].cpu().numpy().copy())
-            log["object_ang_vel_w"].append(object_base_ang_vel[0, :].cpu().numpy().copy())
+
+            log["object_pos_w"].append(object.data.body_pos_w[0, :].cpu().numpy().copy())
+            log["object_quat_w"].append(object.data.body_quat_w[0, :].cpu().numpy().copy())
+            log["object_lin_vel_w"].append(object.data.body_lin_vel_w[0, :].cpu().numpy().copy())
+            log["object_ang_vel_w"].append(object.data.body_ang_vel_w[0, :].cpu().numpy().copy())
 
         if reset_flag and not file_saved:
             file_saved = True
